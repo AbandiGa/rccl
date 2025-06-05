@@ -59,8 +59,20 @@ ncclResult_t ncclTopoPreset(struct ncclComm* comm, struct ncclTopoGraph** graphs
         topoRanks->treeToParent[c] = treeIntra[parentIndex];
         topoRanks->treeToChild0[c] = treeIntra[child0Index];
         topoRanks->treeToChild1[c] = treeIntra[child1Index];
-        channel->tree.up         = i == 0 ? -1 : treeIntra[i-1];
-        channel->tree.down[0]    = i == localRanks-1 ? -1 : treeIntra[i+1];
+        int treeParentIndex, treeChild0Index, treeChild1Index;
+        if (i == 0) {
+          treeParentIndex = -1;
+          treeChild0Index = 1; 
+          treeChild1Index = -1;        
+        } else {
+          treeParentIndex = i / 2;   
+          treeChild0Index = 2 * i;        
+          treeChild1Index = 2 * i + 1;      
+        } 
+    
+        channel->tree.up = (treeParentIndex == -1) ? -1 : treeIntra[treeParentIndex];
+        channel->tree.down[0] = (treeChild0Index >= localRanks) ? -1 : treeIntra[treeChild0Index];
+        channel->tree.down[1] = (treeChild1Index >= localRanks || treeChild1Index == -1) ? -1 : treeIntra[treeChild1Index];   
       }
       if (collNetIntra[i] == rank) {
         channel->collnetChain.up      = i == 0 ? comm->nRanks : collNetIntra[i-1];
