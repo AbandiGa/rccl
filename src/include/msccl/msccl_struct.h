@@ -13,9 +13,9 @@
 #include "device.h"
 #include "msccl/msccl_scheduler.h"
 
-#define MSCCL_MAX_NUM_STEPS 64
-#define MSCCL_MAX_NUM_THREAD_BLOCKS_PER_CHANNEL 32
-#define MSCCL_MAX_NUM_THREAD_BLOCKS 64
+#define MSCCL_MAX_NUM_STEPS (64 * 2)
+#define MSCCL_MAX_NUM_THREAD_BLOCKS_PER_CHANNEL (32 *2)
+#define MSCCL_MAX_NUM_THREAD_BLOCKS (64 * 2)
 #define MSCCL_MAX_COUNT 72 // max concurrent number of msccl chunk transmission
 #define MSCCL_MAX_REDUCE_FUSION 16
 #define MSCCL_MAX_NUM_ALGOS 1024
