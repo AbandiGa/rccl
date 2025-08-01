@@ -229,7 +229,7 @@ static void finishPlan(struct ncclComm* comm, struct ncclKernelPlan* plan) {
   size_t workBytes = plan->workBytes;
   size_t batchBytes = plan->nWorkBatches*sizeof(struct ncclDevWorkBatch);
 
-  plan->threadPerBlock = std::max(plan->threadPerBlock, 256 /*NCCL_MIN_NTHREADS*/);
+  plan->threadPerBlock = std::max(plan->threadPerBlock, NCCL_MAX_NTHREADS);
 
   // If we can fit everything into the kernel args we do so.
   if (sizeof(ncclDevKernelArgs) + batchBytes + workBytes <= comm->workArgsBytes) {
