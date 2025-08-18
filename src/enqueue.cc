@@ -230,7 +230,7 @@ static void finishPlan(struct ncclComm* comm, struct ncclKernelPlan* plan) {
   size_t workBytes = plan->workBytes;
   size_t batchBytes = plan->nWorkBatches*sizeof(struct ncclDevWorkBatch);
 
-  plan->threadPerBlock = std::max(plan->threadPerBlock, 256 /*NCCL_MIN_NTHREADS*/);
+  plan->threadPerBlock = std::max(plan->threadPerBlock, NCCL_MAX_NTHREADS);
 
   // If we can fit everything into the kernel args we do so.
   if (sizeof(ncclDevKernelArgs) + batchBytes + workBytes <= comm->workArgsBytes) {
@@ -449,6 +449,15 @@ ncclResult_t ncclPrepareTasks(struct ncclComm* comm, bool* algoNeedConnect, bool
       }
 
       NCCLCHECK(getAlgoInfo(comm, &agg, collNetSupport, nvlsSupport, nTasksPerChannel, simInfo));
+      size_t elemCount = agg.trafficBytes / ncclTypeSize(agg.datatype);
+      if (agg.func == ncclFuncAllReduce &&
+        elemCount >= (256 << 10) && elemCount <= (2L << 30) &&
+        (agg.datatype == ncclFloat || agg.datatype == ncclBfloat16) &&
+        IsArchMatch(comm->topo->nodes[GPU].nodes[0].gpu.gcn, "gfx942")) {
+        agg.nWarps = 5; 
+      } else {
+        if (agg.nWarps > 4) agg.nWarps = 4;
+      }
       agg.devFuncId = ncclDevFuncId(agg.func, agg.opDev.op, agg.datatype, agg.algorithm, agg.protocol);
       if (agg.devFuncId < 0) {
         WARN("%s: unsupported collective. Please ensure the collective has been enabled in build.", __func__);
