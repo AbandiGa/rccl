@@ -229,8 +229,20 @@ static void finishPlan(struct ncclComm* comm, struct ncclKernelPlan* plan) {
   ncclKernelPlanner::WipPlan::Channel* wipChannels = comm->planner.wipPlan.channels;
   size_t workBytes = plan->workBytes;
   size_t batchBytes = plan->nWorkBatches*sizeof(struct ncclDevWorkBatch);
-
-  plan->threadPerBlock = std::max(plan->threadPerBlock, NCCL_MAX_NTHREADS);
+  
+  struct ncclTaskColl* agg = ncclIntruQueueHead(&plan->collTaskQueue);
+  while (agg != nullptr) {
+      size_t elemCount = agg->count * ncclTypeSize(agg->datatype);
+      if (agg->func == ncclFuncAllReduce &&
+        elemCount >= (256 << 10) && elemCount <= (2L << 30) &&
+        (agg->datatype == ncclFloat || agg->datatype == ncclBfloat16) &&
+        IsArchMatch(comm->topo->nodes[GPU].nodes[0].gpu.gcn, "gfx942")) {
+        plan->threadPerBlock = std::max(plan->threadPerBlock, NCCL_MAX_NTHREADS);
+      } else {
+        plan->threadPerBlock = std::max(plan->threadPerBlock, 256);
+      }
+      agg = agg->next;
+  }
 
   // If we can fit everything into the kernel args we do so.
   if (sizeof(ncclDevKernelArgs) + batchBytes + workBytes <= comm->workArgsBytes) {
@@ -449,7 +461,8 @@ ncclResult_t ncclPrepareTasks(struct ncclComm* comm, bool* algoNeedConnect, bool
       }
 
       NCCLCHECK(getAlgoInfo(comm, &agg, collNetSupport, nvlsSupport, nTasksPerChannel, simInfo));
-      size_t elemCount = agg.trafficBytes / ncclTypeSize(agg.datatype);
+      
+      size_t elemCount = agg.count * ncclTypeSize(agg.datatype);
       if (agg.func == ncclFuncAllReduce &&
         elemCount >= (256 << 10) && elemCount <= (2L << 30) &&
         (agg.datatype == ncclFloat || agg.datatype == ncclBfloat16) &&
@@ -458,6 +471,7 @@ ncclResult_t ncclPrepareTasks(struct ncclComm* comm, bool* algoNeedConnect, bool
       } else {
         if (agg.nWarps > 4) agg.nWarps = 4;
       }
+      
       agg.devFuncId = ncclDevFuncId(agg.func, agg.opDev.op, agg.datatype, agg.algorithm, agg.protocol);
       if (agg.devFuncId < 0) {
         WARN("%s: unsupported collective. Please ensure the collective has been enabled in build.", __func__);
@@ -1130,7 +1144,7 @@ static ncclResult_t scheduleP2pTasksToPlan(
   ) {
   int nRanks = comm->nRanks;
   struct ncclKernelPlanner::Peer* peers = comm->planner.peers;
-
+  
   plan->threadPerBlock = std::max(plan->threadPerBlock, NCCL_MAX_NTHREADS);
   if (!plan->kernelSpecialized) {
     plan->kernelFn = ncclKerns[ncclGetKernelIndex(comm)].kernelFn;
@@ -2014,7 +2028,21 @@ static ncclResult_t topoGetAlgoInfo(
   } else {
     info->nMaxChannels = nc;
   }
-  if (info->algorithm == NCCL_ALGO_TREE) nt = NCCL_MAX_NTHREADS; // Tree now uses all threads always.
+  // === New logic to enforce maxThreads based on message size and datatype ===
+  size_t lowerBound = 256 * 1024;  // 256KB
+  size_t upperBound = 2L * 1024 * 1024 * 1024; // 2GB
+
+  bool isFloatOrBfloat16 = (info->datatype == ncclFloat) || (info->datatype == ncclBfloat16);
+  
+  if (info->func == ncclFuncAllReduce &&
+    nBytes >= (256 << 10) && nBytes <= (2L << 30) &&
+    (info->datatype == ncclFloat || info->datatype == ncclBfloat16) &&
+    IsArchMatch(comm->topo->nodes[GPU].nodes[0].gpu.gcn, "gfx942")) {
+    nt = NCCL_MAX_NTHREADS;
+  } else {
+    if (info->algorithm == NCCL_ALGO_TREE) nt = 256;
+  }
+  
   if (info->algorithm == NCCL_ALGO_PAT) nt = NCCL_MAX_NTHREADS;
   info->nWarps = nt/comm->WarpSize;
   return ncclSuccess;
