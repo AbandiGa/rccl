@@ -2028,12 +2028,7 @@ static ncclResult_t topoGetAlgoInfo(
   } else {
     info->nMaxChannels = nc;
   }
-  // === New logic to enforce maxThreads based on message size and datatype ===
-  size_t lowerBound = 256 * 1024;  // 256KB
-  size_t upperBound = 2L * 1024 * 1024 * 1024; // 2GB
 
-  bool isFloatOrBfloat16 = (info->datatype == ncclFloat) || (info->datatype == ncclBfloat16);
-  
   if (info->func == ncclFuncAllReduce &&
     nBytes >= (256 << 10) && nBytes <= (2L << 30) &&
     (info->datatype == ncclFloat || info->datatype == ncclBfloat16) &&
@@ -2042,7 +2037,7 @@ static ncclResult_t topoGetAlgoInfo(
   } else {
     if (info->algorithm == NCCL_ALGO_TREE) nt = 256;
   }
-  
+
   if (info->algorithm == NCCL_ALGO_PAT) nt = NCCL_MAX_NTHREADS;
   info->nWarps = nt/comm->WarpSize;
   return ncclSuccess;
