@@ -103,7 +103,6 @@ struct alignas(64) ncclIbDev {
 
 #define MAX_IB_DEVS  32
 #define MAX_IB_VDEVS MAX_IB_DEVS*8
-#define P2P_MAX_QPS 2
 struct ncclIbMergedDev ncclIbMergedDevs[MAX_IB_VDEVS];
 struct ncclIbDev ncclIbDevs[MAX_IB_DEVS];
 pthread_mutex_t ncclIbLock = PTHREAD_MUTEX_INITIALIZER;
@@ -113,6 +112,7 @@ static int ncclIbRelaxedOrderingEnabled = 0;
 
 #define NCCL_IB_SL_DEFAULT 0
 #define NCCL_IB_TC_DEFAULT 0
+#define P2P_MAX_QPS 1
 
 NCCL_PARAM(IbGidIndex, "IB_GID_INDEX", -1);
 NCCL_PARAM(IbRoutableFlidIbGidIndex, "IB_ROUTABLE_FLID_GID_INDEX", 1);
@@ -1721,6 +1721,7 @@ ib_recv_dev_list:
     remoteNqps = P2P_MAX_QPS * remoteVProps.ndevs;
   } else {
     localNqps  = ncclParamIbQpsPerConn() * comm->base.vProps.ndevs; // We must have at least 1 qp per-device
+    
   }
   rComm->base.nqps = remoteNqps > localNqps ? remoteNqps : localNqps; // Select max nqps (local or remote)
 
