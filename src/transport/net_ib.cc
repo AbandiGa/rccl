@@ -996,6 +996,7 @@ struct ncclIbConnectionMetadata {
   struct ncclIbDevInfo devs[NCCL_IB_MAX_DEVS_PER_NIC];
   char devName[MAX_MERGED_DEV_NAME];
   uint64_t fifoAddr;
+  int isP2p;
   int ndevs;
   int tc;
   int sl;
@@ -1025,6 +1026,7 @@ struct ncclIbHandle {
   union ncclSocketAddress connectAddr; // Filled by the target
   uint64_t magic; // random number to help debugging
   struct ncclIbCommStage stage; // Used by the other side when connecting
+  int isP2p; 
 };
 
 // Retain local RoCE address for error logging
