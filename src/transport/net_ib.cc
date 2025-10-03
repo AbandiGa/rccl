@@ -1721,7 +1721,7 @@ ib_recv_dev_list:
     remoteNqps = P2P_MAX_QPS * remoteVProps.ndevs;
   } else {
     localNqps  = ncclParamIbQpsPerConn() * comm->base.vProps.ndevs; // We must have at least 1 qp per-device
-    
+    remoteNqps = ncclParamIbQpsPerConn() * remoteVProps.ndevs;
   }
   rComm->base.nqps = remoteNqps > localNqps ? remoteNqps : localNqps; // Select max nqps (local or remote)
 
