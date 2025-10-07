@@ -17,6 +17,7 @@ typedef struct {
 typedef struct {
   // Plugin-specific TC value
   int trafficClass;
+  int isP2p;
 } ncclNetCommConfig_v10_t;
 
 

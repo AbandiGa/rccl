@@ -1355,7 +1355,6 @@ ncclResult_t ncclIbConnect(int dev, ncclNetCommConfig_t* config, void* opaqueHan
   struct ncclIbHandle* handle = (struct ncclIbHandle*) opaqueHandle;
   struct ncclIbCommStage* stage = &handle->stage;
   struct ncclIbSendComm* comm = (struct ncclIbSendComm*)stage->comm;
-  int isP2p = handle->isP2p;
   int ready;
   uint8_t link_layer = IBV_LINK_LAYER_UNSPECIFIED;
   *sendComm = NULL;
@@ -1417,7 +1416,7 @@ ib_recv_dev_list:
   mergedDev = ncclIbMergedDevs + dev;
   comm->base.vProps = mergedDev->vProps;
   int localNqps, remoteNqps;
-  if(isP2p) {
+  if(config->isP2p) {
     localNqps  = P2P_MAX_QPS * comm->base.vProps.ndevs; // We must have at least 1 qp per-device
     remoteNqps = P2P_MAX_QPS * remoteVProps.ndevs;
   } else {
@@ -1436,7 +1435,7 @@ ib_recv_dev_list:
 
   memset(&meta, 0, sizeof(meta));
   meta.ndevs = comm->base.vProps.ndevs;
-  meta.isP2p = isP2p;
+  meta.isP2p = config->isP2p;
   // Alternate QPs between devices
   int devIndex;
   devIndex = 0;
@@ -1715,12 +1714,11 @@ ib_recv_dev_list:
   memcpy(stage->buffer, &rComm->base.vProps, sizeof(ncclNetVDeviceProps_t));
   rComm->base.isSend = false;
   int localNqps, remoteNqps;
-  int isP2p = remMeta->isP2p;
-  if(isP2p) {
-    localNqps  = P2P_MAX_QPS * comm->base.vProps.ndevs; // We must have at least 1 qp per-device
+  if(remMeta.isP2p) {
+    localNqps  = P2P_MAX_QPS * rComm->base.vProps.ndevs; // We must have at least 1 qp per-device
     remoteNqps = P2P_MAX_QPS * remoteVProps.ndevs;
   } else {
-    localNqps  = ncclParamIbQpsPerConn() * comm->base.vProps.ndevs; // We must have at least 1 qp per-device
+    localNqps  = ncclParamIbQpsPerConn() * rComm->base.vProps.ndevs; // We must have at least 1 qp per-device
     remoteNqps = ncclParamIbQpsPerConn() * remoteVProps.ndevs;
   }
   rComm->base.nqps = remoteNqps > localNqps ? remoteNqps : localNqps; // Select max nqps (local or remote)

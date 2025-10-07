@@ -24,6 +24,7 @@
 #include "register_inline.h"
 #if defined(ENABLE_NPKIT)
 #include "npkit/npkit.h"
+#include "net_ib.cc"
 #endif
 #include "msccl/msccl_lifecycle.h"
 
@@ -763,11 +764,11 @@ static ncclResult_t sendProxyConnect(struct ncclProxyConnection* connection, str
   if (reqSize != sizeof(netSendConnectArgs)) return ncclInternalError;
   ncclResult_t ret = ncclSuccess;
   netSendConnectArgs* req = (netSendConnectArgs*) reqBuff;
-  struct ncclIbHandle handle = (struct ncclIbHandle) req->handle;
+  //struct ncclIbHandle* handle = (struct ncclIbHandle*) req->handle;
   commConfig.trafficClass = req->trafficClass == NCCL_CONFIG_UNDEF_INT ? NCCL_NET_TRAFFIC_CLASS_UNDEF : req->trafficClass;
+  commConfig.isP2p = (resources->shared != 0) ? 1:0; 
   NCCLCHECK(ncclNetGetDeviceHandle(resources->netDeviceType, resources->netDeviceVersion, false /*isRecv*/, &resources->netDeviceHandle));
   bool rccl_anp = !(strcmp(proxyState->ncclNet->name, RCCL_ANP_PLUGIN_STR));
-  handle->isP2p = (resources->shared != 0) ? 1:0; 
   if (resources->shared) {
     // Shared buffers
     struct ncclProxyProgressState* progressState = &proxyState->progressState;
@@ -793,10 +794,10 @@ static ncclResult_t sendProxyConnect(struct ncclProxyConnection* connection, str
           && comms->activeConnect[resources->channelId] == (resources->tpLocalRank + 1)) {
         if (rccl_anp) {
           ncclNetCtxt.chId = resources->channelId;
-          ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, handle,
+          ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, req->handle,
             comms->sendComm + resources->channelId, (ncclNetDeviceHandle_t **)&ncclNetCtxt);
         } else {
-          ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, handle,
+          ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, req->handle,
               comms->sendComm + resources->channelId, &resources->netDeviceHandle);
         }
       }
@@ -805,18 +806,18 @@ static ncclResult_t sendProxyConnect(struct ncclProxyConnection* connection, str
     } else {
       if (rccl_anp) {
         ncclNetCtxt.chId = resources->channelId;
-        ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, handle, &resources->netSendComm, (ncclNetDeviceHandle_t **)&ncclNetCtxt);
+        ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, req->handle, &resources->netSendComm, (ncclNetDeviceHandle_t **)&ncclNetCtxt);
       } else {
-        ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, handle, &resources->netSendComm, &resources->netDeviceHandle);
+        ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, req->handle, &resources->netSendComm, &resources->netDeviceHandle);
       }
     }
   } else {
     // Connect to remote peer
     if (rccl_anp) {
       ncclNetCtxt.chId = resources->channelId;
-      ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, handle, &resources->netSendComm, (ncclNetDeviceHandle_t **)&ncclNetCtxt);
+      ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, req->handle, &resources->netSendComm, (ncclNetDeviceHandle_t **)&ncclNetCtxt);
     } else {
-      ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, handle, &resources->netSendComm, &resources->netDeviceHandle);
+      ret = proxyState->ncclNet->connect(resources->netDev, &commConfig, req->handle, &resources->netSendComm, &resources->netDeviceHandle);
     }
     connection->proxyAppendPtr = &connection->proxyAppend;
   }
