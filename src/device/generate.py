@@ -199,6 +199,38 @@ def calc_unroll_for_local_arch():
   else:
     return all_unroll
 
+def calc_pipeline_for_local_arch():
+  # Default: pipelining enabled
+  default_pipeline = ["0", "1"]
+  
+  if not is_local_arch_only:
+    return default_pipeline
+
+  rocminfo_path = os.environ.get('ROCM_PATH') + "/bin/rocminfo"
+
+  res = subprocess.run([rocminfo_path], stdout=subprocess.PIPE, universal_newlines=True)
+  rocminfo_output = res.stdout
+
+  # Parse rocminfo binary output to detect GPU architecture
+  gfx_targets = set()
+  curr_name = None
+  for line in rocminfo_output.splitlines():
+    line = line.strip()
+
+    if line.startswith("Name:"):
+      name = line.split(':')[-1].strip()
+      if "gfx" in name:
+        curr_name = name
+    if line.startswith("Compute Unit:") and curr_name:
+      gfx_targets.add(curr_name)
+      curr_name = None
+
+  # Disable pipelining for MI350 (gfx950)
+  if "gfx950" in gfx_targets:
+    return ["0"]  # Disable pipelining
+  
+  return default_pipeline
+
 # Helper function to check if the conditions for the collective is being met
 def func_validate(coll, algo, proto, redop, ty, acc,  pipeline, unroll):
   if redop == "SumPostDiv" and ty[0] not in ("i","u"):
@@ -326,6 +358,9 @@ def custom_sort_key(fn):
 # if building for local arch only, we only need to build for 1 variant of unroll for most gfx targets,
 # except for gfx950
 all_unroll = calc_unroll_for_local_arch()
+
+# if building for local arch only, disable pipelining for gfx950 (MI350)
+all_pipeline = calc_pipeline_for_local_arch()
 
 # Corresponds to ncclDevFuncRowToId[]
 func_rows = [fn for fn in enumerate_func_rows()]
